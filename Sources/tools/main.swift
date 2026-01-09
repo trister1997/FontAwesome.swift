@@ -2,166 +2,92 @@
 
 import Foundation
 
-// MARK: - Typealiases
+// MARK: - Paths
+let otfDir = "FortAwesome/Font-Awesome/otfs"
+let enumPath = "Sources/FontAwesome/Enum.swift"
+let fasPath = "Sources/FontAwesome/FontAwesomeStyle.swift"
 
-typealias Icons = [String: Icon]
-
-// MARK: - Data Models
-
-struct Icon: Codable {
-    let changes: [String]?
-    let styles: [String]
-    let unicode: String
-    let label: String
-    let svg: [String: SVG]?
+// MARK: - Scan OTF files
+let fileManager = FileManager.default
+guard let otfFiles = try? fileManager.contentsOfDirectory(atPath: otfDir) else {
+    fatalError("Could not read directory at \(otfDir)")
 }
 
-struct SVG: Codable {
-    let raw: String
-    let viewBox: [Double]        // FA7 uses numeric array now
-    let width: UInt
-    let height: UInt
-    let path: Path
-}
+var fontNames: [String: String] = [:] // style -> fontName
+var fileNames: [String: String] = [:] // style -> fileName
 
-struct Path: Codable {
-    let path: String
-    let duotonePath: [String]
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-
-        if let s = try? container.decode(String.self) {
-            path = s
-            duotonePath = []
-        } else if let arr = try? container.decode([String].self) {
-            duotonePath = arr
-            path = ""
-        } else {
-            path = ""
-            duotonePath = []
-        }
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try duotonePath.isEmpty ? container.encode(path) : container.encode(duotonePath)
+for file in otfFiles {
+    guard file.hasSuffix(".otf") else { continue }
+    let name = file.replacingOccurrences(of: ".otf", with: "")
+    
+    let lower = name.lowercased()
+    if lower.contains("solid") {
+        fontNames["solid"] = name
+        fileNames["solid"] = file
+    } else if lower.contains("light") {
+        fontNames["light"] = name
+        fileNames["light"] = file
+    } else if lower.contains("regular") {
+        fontNames["regular"] = name
+        fileNames["regular"] = file
+    } else if lower.contains("brands") {
+        fontNames["brands"] = name
+        fileNames["brands"] = file
     }
 }
 
-// MARK: - String Helpers
-
-extension String {
-    func camelCased(with separator: Character) -> String {
-        return split(separator: separator).reduce("") { result, element in
-            "\(result)\(result.count > 0 ? String(element.capitalized) : String(element))"
-        }
-    }
-
-    func filteredKeywords() -> String {
-        if self == "500px" { return "fiveHundredPixels" }
-        if self == "subscript" { return "`subscript`" }
-        return self
-    }
-}
-
-// MARK: - Load JSON
-
-guard let jsonData = FileManager.default.contents(atPath: "FortAwesome/Font-Awesome/metadata/icons.json") else {
-    fatalError("Could not find JSON metadata file")
-}
-
-let icons = try JSONDecoder().decode(Icons.self, from: jsonData)
-
-// MARK: - Generate Enum.swift
-
-var fontAwesomeEnum = """
-// Enum.swift
+// MARK: - Generate FontAwesome.swift
+var fontAwesomeSwift = """
+// FontAwesome.swift
 //
-// Auto-generated from Font Awesome metadata.
+// Auto-generated from Font Awesome directory.
 // Do not edit manually.
 
-public enum FontAwesome: String, CaseIterable {
+import UIKit
+import CoreText
 
-"""
-
-let sortedKeys = icons.keys.sorted()
-
-for key in sortedKeys {
-    guard let value = icons[key] else { continue }
-    let enumKeyName = key.filteredKeywords().camelCased(with: "-")
-    fontAwesomeEnum += "    case \(enumKeyName) = \"fa-\(key)\"\n"
+public struct FontAwesomeConfig {
+    private init() { }
+    public static let fontAspectRatio: CGFloat = 1.28571429
+    public static var usesProFonts: Bool = false
 }
 
-fontAwesomeEnum += """
+public enum FontAwesomeStyle: String {
+    case solid
+    case light
+    case regular
+    case brands
 
-    /// Unicode of the icon
-    public var unicode: String {
+    func fontName() -> String {
         switch self {
-"""
-
-for key in sortedKeys {
-    guard let value = icons[key] else { continue }
-    let enumKeyName = key.filteredKeywords().camelCased(with: "-")
-    fontAwesomeEnum += "        case .\(enumKeyName): return \"\\u{\(value.unicode)}\"\n"
-}
-
-fontAwesomeEnum += """
-        default: return ""
+        case .solid: return "\(fontNames["solid"] ?? "Font Awesome Solid")"
+        case .light: return "\(fontNames["light"] ?? "Font Awesome Light")"
+        case .regular: return "\(fontNames["regular"] ?? "Font Awesome Regular")"
+        case .brands: return "\(fontNames["brands"] ?? "Font Awesome Brands")"
+        }
     }
-    
-    /// Supported styles of each icon
-    public var supportedStyles: [FontAwesomeStyle] {
+
+    func fontFilename() -> String {
         switch self {
-"""
-
-for key in sortedKeys {
-    guard let value = icons[key] else { continue }
-    let enumKeyName = key.filteredKeywords().camelCased(with: "-")
-    fontAwesomeEnum += "        case .\(enumKeyName): return [.\(value.styles.joined(separator: ", ."))]\n"
-}
-
-fontAwesomeEnum += """
-        default: return []
+        case .solid: return "\(fileNames["solid"] ?? "Font Awesome Solid.otf")"
+        case .light: return "\(fileNames["light"] ?? "Font Awesome Light.otf")"
+        case .regular: return "\(fileNames["regular"] ?? "Font Awesome Regular.otf")"
+        case .brands: return "\(fileNames["brands"] ?? "Font Awesome Brands.otf")"
+        }
     }
-}
 
-public enum FontAwesomeBrands: String {
-"""
-
-let brands = icons.filter { $0.value.styles.contains("brands") }
-let sortedBrandKeys = brands.keys.sorted()
-
-for key in sortedBrandKeys {
-    let enumKeyName = key.filteredKeywords().camelCased(with: "-")
-    fontAwesomeEnum += "    case \(enumKeyName) = \"fa-\(key)\"\n"
-}
-
-fontAwesomeEnum += """
-
-    public var unicode: String {
+    func fontFamilyName() -> String {
         switch self {
-"""
-
-for key in sortedBrandKeys {
-    guard let value = brands[key] else { continue }
-    let enumKeyName = key.filteredKeywords().camelCased(with: "-")
-    fontAwesomeEnum += "        case .\(enumKeyName): return \"\\u{\(value.unicode)}\"\n"
-}
-
-fontAwesomeEnum += """
-        default: return ""
+        case .brands: return "\(fontNames["brands"] ?? "Font Awesome Brands")"
+        default: return "Font Awesome"
+        }
     }
 }
 """
 
-// MARK: - Write file
+// MARK: - Write FontAwesome.swift
+fileManager.createFile(atPath: fasPath,
+                       contents: fontAwesomeSwift.data(using: .utf8),
+                       attributes: nil)
 
-let outputPath = "FontAwesome/Enum.swift"
-FileManager.default.createFile(
-    atPath: outputPath,
-    contents: fontAwesomeEnum.data(using: .utf8),
-    attributes: nil
-)
-
-print("Enum.swift generated successfully at \(outputPath)")
+print("FontAwesome.swift updated successfully at \(fasPath)")

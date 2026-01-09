@@ -41,51 +41,6 @@ public struct FontAwesomeConfig {
     public static var usesProFonts: Bool = false
 }
 
-public enum FontAwesomeStyle: String {
-    case solid
-    /// WARNING: Font Awesome Free doesn't include a Light variant. Using this with Free will fallback to Regular.
-    case light
-    case regular
-    case brands
-
-    func fontName() -> String {
-        switch self {
-        case .solid:
-            return FontAwesomeConfig.usesProFonts ? "FontAwesome5Pro-Solid" : "FontAwesome5Free-Solid"
-        case .light:
-            return FontAwesomeConfig.usesProFonts ? "FontAwesome5Pro-Light" : "FontAwesome5Free-Regular"
-        case .regular:
-            return FontAwesomeConfig.usesProFonts ? "FontAwesome5Pro-Regular" : "FontAwesome5Free-Regular"
-        case .brands:
-            return "FontAwesome5Brands-Regular"
-        }
-    }
-
-    func fontFilename() -> String {
-        switch self {
-        case .solid:
-            return FontAwesomeConfig.usesProFonts ? "Font Awesome 5 Pro-Solid-900" : "Font Awesome 5 Free-Solid-900"
-        case .light:
-            return FontAwesomeConfig.usesProFonts ? "Font Awesome 5 Pro-Light-300" : "Font Awesome 5 Free-Regular-400"
-        case .regular:
-            return FontAwesomeConfig.usesProFonts ? "Font Awesome 5 Pro-Regular-400" : "Font Awesome 5 Free-Regular-400"
-        case .brands:
-            return "Font Awesome 5 Brands-Regular-400"
-        }
-    }
-
-    func fontFamilyName() -> String {
-        switch self {
-        case .brands:
-            return "Font Awesome 5 Brands"
-        case .regular,
-             .light,
-             .solid:
-            return FontAwesomeConfig.usesProFonts ? "Font Awesome 5 Pro" : "Font Awesome 5 Free"
-        }
-    }
-}
-
 /// A FontAwesome extension to UIFont.
 public extension UIFont {
 

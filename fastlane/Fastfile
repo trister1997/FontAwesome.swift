@@ -24,11 +24,11 @@ lane :update_font do |options|
   sh("git add #{ENV["PWD"]}/Sources/FontAwesome #{ENV["PWD"]}/FortAwesome/Font-Awesome")
 
   # Commit using Fastlane action
-  git_commit(
-    path: ".",
-    message: "Update font version to #{target_version}",
-    allow_nothing_to_commit: true
-  )
+#  git_commit(
+#    path: ".",
+#    message: "Update font version to #{target_version}",
+#    allow_nothing_to_commit: true
+#  )
 end
 
 desc "Release a new version"
