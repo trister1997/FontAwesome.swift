@@ -2,19 +2,23 @@
 
 import Foundation
 
+// MARK: - Typealiases
+
 typealias Icons = [String: Icon]
 
+// MARK: - Data Models
+
 struct Icon: Codable {
-    let changes: [String]
+    let changes: [String]?
     let styles: [String]
     let unicode: String
     let label: String
-    let svg: [String: SVG]
+    let svg: [String: SVG]?
 }
 
 struct SVG: Codable {
     let raw: String
-    let viewBox: [String]
+    let viewBox: [Double]        // FA7 uses numeric array now
     let width: UInt
     let height: UInt
     let path: Path
@@ -24,18 +28,18 @@ struct Path: Codable {
     let path: String
     let duotonePath: [String]
 
-    // Where we determine what type the value is
     init(from decoder: Decoder) throws {
-        let container =  try decoder.singleValueContainer()
+        let container = try decoder.singleValueContainer()
 
-        // Check for String
-        do {
-            path = try container.decode(String.self)
+        if let s = try? container.decode(String.self) {
+            path = s
             duotonePath = []
-        } catch {
-            // Check for Array
-            duotonePath = try container.decode([String].self)
+        } else if let arr = try? container.decode([String].self) {
+            duotonePath = arr
             path = ""
+        } else {
+            path = ""
+            duotonePath = []
         }
     }
 
@@ -45,173 +49,119 @@ struct Path: Codable {
     }
 }
 
+// MARK: - String Helpers
+
 extension String {
-    public func camelCased(with separator: Character) -> String {
+    func camelCased(with separator: Character) -> String {
         return split(separator: separator).reduce("") { result, element in
             "\(result)\(result.count > 0 ? String(element.capitalized) : String(element))"
         }
     }
 
-    public func filteredKeywords() -> String {
-        if self == "500px" {
-            return "fiveHundredPixels"
-        }
-        if self == "subscript" {
-            return "`subscript`"
-        }
+    func filteredKeywords() -> String {
+        if self == "500px" { return "fiveHundredPixels" }
+        if self == "subscript" { return "`subscript`" }
         return self
     }
 }
 
-guard let json = FileManager.default.contents(atPath: "FortAwesome/Font-Awesome/metadata/icons.json") else {
+// MARK: - Load JSON
+
+guard let jsonData = FileManager.default.contents(atPath: "FortAwesome/Font-Awesome/metadata/icons.json") else {
     fatalError("Could not find JSON metadata file")
 }
 
-let icons = try JSONDecoder().decode(Icons.self, from: json)
+let icons = try JSONDecoder().decode(Icons.self, from: jsonData)
 
-// Start writing FontAwesome enum
-var fontAwesomeEnum = ""
+// MARK: - Generate Enum.swift
 
-fontAwesomeEnum += """
+var fontAwesomeEnum = """
 // Enum.swift
 //
-// Copyright (c) 2014-present FontAwesome.swift contributors
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
+// Auto-generated from Font Awesome metadata.
+// Do not edit manually.
 
-// DO NOT EDIT! This file is auto-generated. To regenerate it, update
-// Font-Awesome submodule and run `./codegen.swift`.
-
-/// An enumaration of FontAwesome icon names.
-// swiftlint:disable file_length type_body_length
 public enum FontAwesome: String, CaseIterable {
 
 """
 
-let sortedKeys = Array(icons.keys).sorted(by: <)
-sortedKeys.forEach { key in
-    guard icons[key] != nil else { return }
-    let enumKeyName = key.filteredKeywords().camelCased(with: "-")
-    fontAwesomeEnum += """
-        case \(enumKeyName) = \"fa-\(key)\"
+let sortedKeys = icons.keys.sorted()
 
-    """
+for key in sortedKeys {
+    guard let value = icons[key] else { continue }
+    let enumKeyName = key.filteredKeywords().camelCased(with: "-")
+    fontAwesomeEnum += "    case \(enumKeyName) = \"fa-\(key)\"\n"
 }
 
 fontAwesomeEnum += """
 
-    /// An unicode code of FontAwesome icon
+    /// Unicode of the icon
     public var unicode: String {
         switch self {
-
 """
 
-
-sortedKeys.forEach { key in
-    guard let value = icons[key] else { return }
+for key in sortedKeys {
+    guard let value = icons[key] else { continue }
     let enumKeyName = key.filteredKeywords().camelCased(with: "-")
-    fontAwesomeEnum += """
-                case .\(enumKeyName): return \"\\u{\(value.unicode)}\"
-    """
-    fontAwesomeEnum += "\n"
+    fontAwesomeEnum += "        case .\(enumKeyName): return \"\\u{\(value.unicode)}\"\n"
 }
 
 fontAwesomeEnum += """
-            default: return ""
-"""
-fontAwesomeEnum += "\n"
-
-fontAwesomeEnum += """
-        }
+        default: return ""
     }
-"""
-
-fontAwesomeEnum += """
-
-
-    /// Supported styles of each FontAwesome font
+    
+    /// Supported styles of each icon
     public var supportedStyles: [FontAwesomeStyle] {
         switch self {
-
 """
 
-sortedKeys.forEach { key in
-    guard let value = icons[key] else { return }
+for key in sortedKeys {
+    guard let value = icons[key] else { continue }
     let enumKeyName = key.filteredKeywords().camelCased(with: "-")
-    fontAwesomeEnum += """
-                case .\(enumKeyName): return [.\(value.styles.joined(separator: ", ."))]
-    """
-    fontAwesomeEnum += "\n"
+    fontAwesomeEnum += "        case .\(enumKeyName): return [.\(value.styles.joined(separator: ", ."))]\n"
 }
 
 fontAwesomeEnum += """
-            default: return []
-"""
-fontAwesomeEnum += "\n"
-
-fontAwesomeEnum += """
-        }
+        default: return []
     }
 }
 
-/// An enumaration of FontAwesome Brands icon names
 public enum FontAwesomeBrands: String {
-
 """
 
-let brandsIcons = icons.filter { $0.value.styles.contains("brands") }
-let sortedBrandsKeys = Array(brandsIcons.keys).sorted(by: <)
-sortedBrandsKeys.forEach { key in
-    guard brandsIcons[key] != nil else { return }
+let brands = icons.filter { $0.value.styles.contains("brands") }
+let sortedBrandKeys = brands.keys.sorted()
+
+for key in sortedBrandKeys {
     let enumKeyName = key.filteredKeywords().camelCased(with: "-")
-    fontAwesomeEnum += """
-        case \(enumKeyName) = \"fa-\(key)\"
-
-    """
+    fontAwesomeEnum += "    case \(enumKeyName) = \"fa-\(key)\"\n"
 }
-
 
 fontAwesomeEnum += """
 
-    /// An unicode code of FontAwesome icon
     public var unicode: String {
         switch self {
-
 """
 
-sortedBrandsKeys.forEach { key in
-    guard let value = brandsIcons[key] else { return }
+for key in sortedBrandKeys {
+    guard let value = brands[key] else { continue }
     let enumKeyName = key.filteredKeywords().camelCased(with: "-")
-    fontAwesomeEnum += """
-                case .\(enumKeyName): return \"\\u{\(value.unicode)}\"
-    """
-    if key != sortedBrandsKeys.last {
-        fontAwesomeEnum += "\n"
-    }
+    fontAwesomeEnum += "        case .\(enumKeyName): return \"\\u{\(value.unicode)}\"\n"
 }
 
 fontAwesomeEnum += """
-        
-        }
+        default: return ""
     }
 }
-
 """
 
-FileManager.default.createFile(atPath: "FontAwesome/Enum.swift", contents: fontAwesomeEnum.data(using: .utf8), attributes: nil)
+// MARK: - Write file
+
+let outputPath = "FontAwesome/Enum.swift"
+FileManager.default.createFile(
+    atPath: outputPath,
+    contents: fontAwesomeEnum.data(using: .utf8),
+    attributes: nil
+)
+
+print("Enum.swift generated successfully at \(outputPath)")
